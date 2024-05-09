@@ -3,7 +3,25 @@ package com.kodat.of.bankproject.utils;
 import java.time.Year;
 
 public class AccountUtils {
-public static String generateAccountNumber() {
+
+    public static final String ACCOUNT_EXISTS_CODE = "001";
+    public static final String ACCOUNT_EXISTS_MESSAGE = "Account already exists";
+    public static final String ACCOUNT_CREATION_SUCCESS = "002";
+    public static final String ACCOUNT_CREATION_MESSAGE = "Account creation success";
+    public static final String ACCOUNT_NON_EXISTENT_CODE = "003";
+    public static final String ACCOUNT_NON_EXISTENT_MESSAGE = "User with the provided Account number does not exist";
+    public static final String ACCOUNT_FOUND_CODE = "004";
+    public static final String ACCOUNT_FOUND_SUCCESS = "User Account found";
+    public static final String ACCOUNT_CREDITED_SUCCESS = "005";
+    public static final String ACCOUNT_CREDITED_MESSAGE = "User Account redited account success";
+    public static final String ACCOUNT_DEBIT_FAIL = "006";
+    public static final String ACCOUNT_DEBIT_FAIL_MESSAGE = "User Account debit is more than your current balance";
+    public static final String ACCOUNT_DEBIT_SUCCESS = "007";
+    public static final String ACCOUNT_DEBIT_SUCCESS_MESSAGE = "User Account debit success";
+
+
+
+    public static String generateAccountNumber() {
     // 2024 + randomSixDigits
 
     Year currentYear = Year.now();
@@ -24,10 +42,6 @@ public static String generateAccountNumber() {
 
 }
 
-public static final String ACCOUNT_EXISTS_CODE = "001";
-public static final String ACCOUNT_EXISTS_MESSAGE = "Account already exists";
-public static final String ACCOUNT_CREATION_SUCCESS = "002";
-public static final String ACCOUNT_CREATION_MESSAGE = "Account creation success";
 
 
 
