@@ -18,6 +18,12 @@ public class AccountUtils {
     public static final String ACCOUNT_DEBIT_FAIL_MESSAGE = "User Account debit is more than your current balance";
     public static final String ACCOUNT_DEBIT_SUCCESS = "007";
     public static final String ACCOUNT_DEBIT_SUCCESS_MESSAGE = "User Account debit success";
+    public static final String SOURCE_ACCOUNT_NOT_EXISTS = "008";
+    public static final String SOURCE_ACCOUNT_NOT_EXISTS_MESSAGE= "Source account doesn't exists";
+    public static final String DESTINATION_ACCOUNT_NOT_EXISTS = "009";
+    public static final String DESTINATION_ACCOUNT_NOT_EXISTS_MESSAGE = "Destination account doesn't exists";
+    public static final String TRANSFER_SUCCESS = "010";
+    public static final String TRANSFER_SUCCESS_MESSAGE = "Transfer success";
 
 
 

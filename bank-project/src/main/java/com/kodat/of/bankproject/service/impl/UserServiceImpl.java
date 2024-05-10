@@ -4,21 +4,24 @@ import com.kodat.of.bankproject.dto.*;
 import com.kodat.of.bankproject.entity.User;
 import com.kodat.of.bankproject.repository.UserRepository;
 import com.kodat.of.bankproject.service.EmailService;
+import com.kodat.of.bankproject.service.TransactionService;
 import com.kodat.of.bankproject.service.UserService;
 import com.kodat.of.bankproject.utils.AccountUtils;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+
 
 @Service
 public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final EmailService emailService;
+    private final TransactionService transactionService;
 
-    public UserServiceImpl(UserRepository userRepository, EmailService emailService) {
+    public UserServiceImpl(UserRepository userRepository, EmailService emailService, TransactionService transactionService) {
         this.userRepository = userRepository;
         this.emailService = emailService;
+        this.transactionService = transactionService;
     }
 
     @Override
@@ -109,7 +112,7 @@ public class UserServiceImpl implements UserService {
             return AccountUtils.ACCOUNT_NON_EXISTENT_MESSAGE;
         }
         User foundUser = userRepository.findByAccountNumber(enquiryRequest.getAccountNumber());
-        return foundUser.getFirstName() + " " + foundUser.getLastName() +" "+ foundUser.getOtherName();
+        return foundUser.getFirstName() + " " + foundUser.getLastName() + " " + foundUser.getOtherName();
 
     }
 
@@ -128,15 +131,27 @@ public class UserServiceImpl implements UserService {
         userToCredit.setAccountBalance(userToCredit.getAccountBalance().add(request.getAmount()));
         userRepository.save(userToCredit);
 
+        //Save transaction
+
+        TransactionDTO transactionDTO = TransactionDTO.builder()
+                .accountNumber(userToCredit.getAccountNumber())
+                .transactionType("CREDIT")
+                .amount(request.getAmount())
+                .build();
+
+        transactionService.saveTransaction(transactionDTO);
+
+
+
         return BankResponse
                 .builder()
                 .responseCode(AccountUtils.ACCOUNT_CREDITED_SUCCESS)
-                .responseMessage(AccountUtils.ACCOUNT_CREDITED_SUCCESS)
+                .responseMessage(AccountUtils.ACCOUNT_CREDITED_MESSAGE)
                 .accountInfo(AccountInfo
                         .builder()
                         .accountBalance(userToCredit.getAccountBalance())
                         .accountNumber(userToCredit.getAccountNumber())
-                        .accountName(userToCredit.getFirstName() + " " + userToCredit.getOtherName() +" " + userToCredit.getLastName())
+                        .accountName(userToCredit.getFirstName() + " " + userToCredit.getOtherName() + " " + userToCredit.getLastName())
                         .build())
                 .build();
 
@@ -164,16 +179,26 @@ public class UserServiceImpl implements UserService {
                             .builder()
                             .accountBalance(userToDebit.getAccountBalance())
                             .accountNumber(userToDebit.getAccountNumber())
-                            .accountName(userToDebit.getFirstName() + " " + userToDebit.getOtherName() +" " + userToDebit.getLastName())
+                            .accountName(userToDebit.getFirstName() + " " + userToDebit.getOtherName() + " " + userToDebit.getLastName())
                             .build())
                     .build();
         }
         userToDebit.setAccountBalance(userToDebit.getAccountBalance().subtract(request.getAmount()));
         userRepository.save(userToDebit);
 
+        //Save transaction
+
+        TransactionDTO transactionDTO = TransactionDTO.builder()
+                .accountNumber(userToDebit.getAccountNumber())
+                .transactionType("DEBIT")
+                .amount(request.getAmount())
+                .build();
+
+        transactionService.saveTransaction(transactionDTO);
+
         return BankResponse.builder()
                 .responseCode(AccountUtils.ACCOUNT_DEBIT_SUCCESS)
-                .responseMessage(AccountUtils.ACCOUNT_DEBIT_SUCCESS)
+                .responseMessage(AccountUtils.ACCOUNT_DEBIT_SUCCESS_MESSAGE)
                 .accountInfo(AccountInfo
                         .builder()
                         .accountBalance(userToDebit.getAccountBalance())
@@ -182,4 +207,101 @@ public class UserServiceImpl implements UserService {
                         .build())
                 .build();
     }
-}
+
+    @Override
+    public BankResponse transfer(TransferRequest request) {
+        // get the account to debit (check if exists)
+        //check if the amount debit is not more than current balance
+        // debit the account
+        //get the account to credit
+        //credit the account
+
+        boolean isSourceAccountExists = userRepository.existsByAccountNumber(request.getSourceAccountNumber());
+        boolean isDestinationAccountExists = userRepository.existsByAccountNumber(request.getDestinationAccountNumber());
+        if (!isDestinationAccountExists) {
+            return BankResponse.builder()
+                    .responseCode(AccountUtils.DESTINATION_ACCOUNT_NOT_EXISTS)
+                    .responseMessage(AccountUtils.DESTINATION_ACCOUNT_NOT_EXISTS_MESSAGE)
+                    .accountInfo(null)
+                    .build();
+        }
+        if (!isSourceAccountExists) {
+            return BankResponse
+                    .builder()
+                    .responseCode(AccountUtils.SOURCE_ACCOUNT_NOT_EXISTS)
+                    .responseMessage(AccountUtils.SOURCE_ACCOUNT_NOT_EXISTS_MESSAGE)
+                    .accountInfo(null)
+                    .build();
+        }
+        User userToSource = userRepository.findByAccountNumber(request.getSourceAccountNumber());
+        User userToDestination = userRepository.findByAccountNumber(request.getDestinationAccountNumber());
+
+        if (request.getAmount().compareTo(userToSource.getAccountBalance()) > 0) {
+            return BankResponse.builder()
+                    .responseCode(AccountUtils.ACCOUNT_DEBIT_FAIL)
+                    .responseMessage(AccountUtils.ACCOUNT_DEBIT_FAIL_MESSAGE)
+                    .accountInfo(AccountInfo
+                            .builder()
+                            .accountBalance(userToSource.getAccountBalance())
+                            .accountNumber(userToSource.getAccountNumber())
+                            .accountName(userToSource.getFirstName() + " " + userToSource.getOtherName() + " " + userToSource.getLastName())
+                            .build())
+                    .build();
+        }
+        userToSource.setAccountBalance(userToSource.getAccountBalance().subtract(request.getAmount()));
+        userRepository.save(userToSource);
+        EmailDetails debitAlert = EmailDetails
+                .builder()
+                .recipient(userToSource.getEmail())
+                .subject("DEBIT MESSAGE")
+                .messageBody("The sum of " + request.getAmount() + " has been deducted from your account!" + userToSource.getAccountBalance())
+                .build();
+        emailService.sendEmailAlert(debitAlert);
+
+
+        userToDestination.setAccountBalance(userToDestination.getAccountBalance().add(request.getAmount()));
+        userRepository.save(userToDestination);
+
+        EmailDetails creditAlert = EmailDetails
+                .builder()
+                .recipient(userToDestination.getEmail())
+                .subject("DEBIT MESSAGE")
+                .messageBody("The sum of " + request.getAmount() + " has been sent to from your account!" + userToDestination.getAccountBalance())
+                .build();
+        emailService.sendEmailAlert(creditAlert);
+
+        //Save transaction
+
+        TransactionDTO transactionDTO = TransactionDTO.builder()
+                .accountNumber(userToDestination.getAccountNumber())
+                .transactionType("CREDIT")
+                .amount(request.getAmount())
+                .build();
+
+        transactionService.saveTransaction(transactionDTO);
+
+        return BankResponse
+                .builder()
+                .responseCode(AccountUtils.TRANSFER_SUCCESS)
+                .responseMessage(AccountUtils.TRANSFER_SUCCESS_MESSAGE)
+                .accountInfo(null)
+                .build();
+
+
+    }
+
+    @Override
+    public void deleteAccount(EnquiryRequest enquiryRequest) {
+       User user = userRepository.findByAccountNumber(enquiryRequest.getAccountNumber());
+       if (user != null){
+           userRepository.delete(user);
+       }else{
+           throw new RuntimeException("user not found");
+       }
+
+
+
+
+
+
+    }}

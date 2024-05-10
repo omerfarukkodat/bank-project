@@ -38,8 +38,9 @@ private static final Logger LOGGER = LoggerFactory.getLogger(EmailServiceImpl.cl
             message.setSubject(emailDetails.getSubject());
             mailSender.send(message);
             LOGGER.info("email sent successfully");
-        }catch (MailException e) {
-            throw new RuntimeException();
+        } catch (MailException e) {
+            throw new RuntimeException("Error sending email", e);
         }
     }
-}
+    }
+
