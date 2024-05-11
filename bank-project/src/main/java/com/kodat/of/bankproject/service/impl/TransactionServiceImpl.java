@@ -9,6 +9,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
+
 @Service
 public class TransactionServiceImpl implements TransactionService {
 
@@ -27,6 +29,7 @@ public class TransactionServiceImpl implements TransactionService {
                 .accountNumber(transactionDTO.getAccountNumber())
                 .amount(transactionDTO.getAmount())
                 .status(Status.SUCCESS)
+                .createDate(LocalDate.now())
                 .build();
         transactionRepository.save(transaction);
         LOG.info("Transaction saved successfully");
