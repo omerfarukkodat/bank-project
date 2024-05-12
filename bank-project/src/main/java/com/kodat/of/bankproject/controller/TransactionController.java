@@ -1,7 +1,9 @@
 package com.kodat.of.bankproject.controller;
 
+import com.itextpdf.text.DocumentException;
 import com.kodat.of.bankproject.entity.Transaction;
 import com.kodat.of.bankproject.service.impl.BankStatement;
+import jakarta.mail.MessagingException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -20,7 +22,7 @@ public class TransactionController {
     @GetMapping
     public List<Transaction> generateBankStatement(@RequestParam String accountNumber,
                                                    @RequestParam String startDate,
-                                                   @RequestParam String endDate) {
+                                                   @RequestParam String endDate) throws DocumentException, MessagingException {
 
         return bankStatement.generateStatement(accountNumber, startDate, endDate);
 

@@ -4,10 +4,13 @@ import com.itextpdf.text.*;
 import com.itextpdf.text.pdf.PdfPCell;
 import com.itextpdf.text.pdf.PdfPTable;
 import com.itextpdf.text.pdf.PdfWriter;
+import com.kodat.of.bankproject.dto.EmailDetails;
 import com.kodat.of.bankproject.entity.Transaction;
 import com.kodat.of.bankproject.entity.User;
 import com.kodat.of.bankproject.repository.TransactionRepository;
 import com.kodat.of.bankproject.repository.UserRepository;
+import com.kodat.of.bankproject.service.EmailService;
+import jakarta.mail.MessagingException;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
@@ -33,31 +36,24 @@ import java.util.List;
 public class BankStatement {
     private final TransactionRepository transactionRepository;
     private final UserRepository userRepository;
+    private EmailService emailService;
 
     private static final String FILE = "/Users/farukkodat/Downloads/mystatement.pdf";
     private static final Logger LOGGER = LoggerFactory.getLogger(BankStatement.class);
 
-    public List<Transaction> generateStatement(String accountNumber, String startDate, String endDate) {
+    public List<Transaction> generateStatement(String accountNumber, String startDate, String endDate) throws DocumentException, MessagingException {
         LocalDate start = LocalDate.parse(startDate, DateTimeFormatter.ISO_DATE);
         LocalDate end = LocalDate.parse(endDate, DateTimeFormatter.ISO_DATE);
         LOGGER.info("Start date is {}", start);
         LOGGER.info("End date is {}", end);
-        return transactionRepository.findAll()
+        List<Transaction> transactionList = transactionRepository.findAll()
                 .stream()
                 .filter(transaction -> transaction.getAccountNumber().equals(accountNumber))
                 .filter(transaction -> isAfterOrEqual(transaction.getCreateDate(), start))
                 .filter(transaction -> isBeforeOrEqual(transaction.getCreateDate(), end)).toList();
 
-
-    }
-
-    private void designStatement(List<Transaction> transactions , String accountNumber) throws FileNotFoundException {
         User user = userRepository.findByAccountNumber(accountNumber);
         String customerName = user.getFirstName() + " " + user.getOtherName() + " " + user.getLastName();
-
-        Transaction transaction = transactionRepository.findByAccountNumber(accountNumber);
-        String startDate = transaction.getCreateDate().format(DateTimeFormatter.ISO_DATE);
-        String endDate = transaction.getCreateDate().format(DateTimeFormatter.ISO_DATE);
 
 
         Rectangle statementSize = new Rectangle(PageSize.A4);
@@ -69,6 +65,8 @@ public class BankStatement {
             document.open();
         } catch (DocumentException e) {
             throw new RuntimeException("File doesn't exist or can't handle it.", e);
+        } catch (FileNotFoundException e) {
+            throw new RuntimeException(e);
         }
         PdfPTable bankInfoTable = new PdfPTable(1);
         PdfPCell bankName = new PdfPCell(new Phrase("Bank Of Turkey"));
@@ -82,16 +80,17 @@ public class BankStatement {
         bankInfoTable.addCell(bankAddress);
 
         PdfPTable statementInfo = new PdfPTable(2);
-        PdfPCell customerInfo = new PdfPCell(new Phrase("Start Date: " + startDate ));
+        PdfPCell customerInfo = new PdfPCell(new Phrase("Start Date: " + startDate));
         customerInfo.setBorder(0);
         PdfPCell statement = new PdfPCell(new Phrase("State Of Account"));
         statement.setBorder(0);
-        PdfPCell lastDate = new PdfPCell(new Phrase("End Date" + endDate  ));
+        PdfPCell lastDate = new PdfPCell(new Phrase("End Date: " + endDate));
         lastDate.setBorder(0);
-        PdfPCell customerNameInfo = new PdfPCell(new Phrase("Customer Name : " + customerName));
+        PdfPCell customerNameInfo = new PdfPCell(new Phrase("Customer Name: " + customerName));
         customerNameInfo.setBorder(0);
         PdfPCell space = new PdfPCell();
-        PdfPCell address = new PdfPCell(new Phrase("Customer Adress :" + user.getAddress()));
+        space.setBorder(0);
+        PdfPCell address = new PdfPCell(new Phrase("Customer Address: " + user.getAddress()));
         address.setBorder(0);
 
         PdfPTable transactionsTable = new PdfPTable(4);
@@ -107,13 +106,44 @@ public class BankStatement {
         PdfPCell status = new PdfPCell(new Phrase("Status"));
         status.setBackgroundColor(BaseColor.LIGHT_GRAY);
         status.setBorder(0);
-        
+
+        transactionsTable.addCell(date);
+        transactionsTable.addCell(transactionType);
+        transactionsTable.addCell(amount);
+        transactionsTable.addCell(status);
 
 
+        transactionList.forEach(transaction -> {
+            transactionsTable.addCell(new Phrase(transaction.getCreateDate().toString()));
+            transactionsTable.addCell(new Phrase(transaction.getTransactionType()));
+            transactionsTable.addCell(new Phrase(transaction.getAmount().toString()));
+            transactionsTable.addCell(new Phrase(transaction.getStatus().toString()));
+        });
 
+        statementInfo.addCell(customerInfo);
+        statementInfo.addCell(statement);
+        statementInfo.addCell(lastDate);
+        statementInfo.addCell(customerNameInfo);
+        statementInfo.addCell(space);
+        statementInfo.addCell(address);
 
+        document.add(bankInfoTable);
+        document.add(statementInfo);
+        document.add(transactionsTable);
+        document.close();
 
+        EmailDetails emailDetails = EmailDetails.builder()
+                .recipient(user.getEmail())
+                .subject("STATEMENT OF ACCOUNT")
+                .messageBody("You can see your requested account statement attachment")
+                .attachment(FILE)
+                .build();
+
+        emailService.sendEmailWithAttachment(emailDetails);
+
+        return transactionList;
     }
+
 
 
     @Transactional
