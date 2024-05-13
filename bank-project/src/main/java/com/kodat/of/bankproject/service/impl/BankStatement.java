@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -38,36 +39,53 @@ public class BankStatement {
     private final UserRepository userRepository;
     private EmailService emailService;
 
-    private static final String FILE = "/Users/farukkodat/Downloads/mystatement.pdf";
+    private static final String FILE = "/Users/farukkodat/Downloads/mystatement1.pdf";
     private static final Logger LOGGER = LoggerFactory.getLogger(BankStatement.class);
 
-    public List<Transaction> generateStatement(String accountNumber, String startDate, String endDate) throws DocumentException, MessagingException {
+    public List<Transaction> generateStatement(String accountNumber, String startDate, String endDate) throws DocumentException, MessagingException, FileNotFoundException {
         LocalDate start = LocalDate.parse(startDate, DateTimeFormatter.ISO_DATE);
         LocalDate end = LocalDate.parse(endDate, DateTimeFormatter.ISO_DATE);
         LOGGER.info("Start date is {}", start);
         LOGGER.info("End date is {}", end);
-        List<Transaction> transactionList = transactionRepository.findAll()
-                .stream()
-                .filter(transaction -> transaction.getAccountNumber().equals(accountNumber))
-                .filter(transaction -> isAfterOrEqual(transaction.getCreateDate(), start))
-                .filter(transaction -> isBeforeOrEqual(transaction.getCreateDate(), end)).toList();
+        List<Transaction> transactionList = getFilteredTransactions(accountNumber, start, end);
 
         User user = userRepository.findByAccountNumber(accountNumber);
         String customerName = user.getFirstName() + " " + user.getOtherName() + " " + user.getLastName();
 
+        createPDF(transactionList, user, startDate, endDate, customerName);
+        sendStatementEmail(user, FILE);
+        return transactionList;
+    }
 
-        Rectangle statementSize = new Rectangle(PageSize.A4);
-        Document document = new Document(statementSize);
-        LOGGER.info("setting size of document");
-        try {
-            OutputStream stream = new FileOutputStream(FILE);
+
+    private List<Transaction> getFilteredTransactions(String accountNumber, LocalDate startDate, LocalDate endDate) {
+        return transactionRepository.findAll()
+                .stream()
+                .filter(transaction -> transaction.getAccountNumber().equals(accountNumber))
+                .filter(transaction -> isAfterOrEqual(transaction.getCreateDate(), startDate))
+                .filter(transaction -> isBeforeOrEqual(transaction.getCreateDate(), endDate))
+                .toList();
+    }
+
+    private void createPDF(List<Transaction> transactionList, User user, String startDate, String endDate, String customerName) throws DocumentException, MessagingException, FileNotFoundException {
+
+        Document document = new Document(PageSize.A4);
+        try (OutputStream stream = new FileOutputStream(FILE)) {
             PdfWriter.getInstance(document, stream);
             document.open();
-        } catch (DocumentException e) {
-            throw new RuntimeException("File doesn't exist or can't handle it.", e);
-        } catch (FileNotFoundException e) {
+            addBankInfo(document);
+            addStatementInfo(document, user, startDate, endDate, customerName);
+            addTransactions(document, transactionList);
+            document.close();
+
+        } catch (DocumentException | IOException e) {
             throw new RuntimeException(e);
         }
+
+
+    }
+
+    private void addBankInfo(Document document) throws DocumentException {
         PdfPTable bankInfoTable = new PdfPTable(1);
         PdfPCell bankName = new PdfPCell(new Phrase("Bank Of Turkey"));
         bankName.setBorder(0);
@@ -78,6 +96,10 @@ public class BankStatement {
         bankAddress.setBorder(0);
         bankInfoTable.addCell(bankName);
         bankInfoTable.addCell(bankAddress);
+        document.add(bankInfoTable);
+    }
+
+    private void addStatementInfo(Document document, User user, String startDate, String endDate, String customerName) throws DocumentException {
 
         PdfPTable statementInfo = new PdfPTable(2);
         PdfPCell customerInfo = new PdfPCell(new Phrase("Start Date: " + startDate));
@@ -93,6 +115,20 @@ public class BankStatement {
         PdfPCell address = new PdfPCell(new Phrase("Customer Address: " + user.getAddress()));
         address.setBorder(0);
 
+        statementInfo.addCell(customerInfo);
+        statementInfo.addCell(statement);
+        statementInfo.addCell(lastDate);
+        statementInfo.addCell(customerNameInfo);
+        statementInfo.addCell(space);
+        statementInfo.addCell(address);
+
+
+        document.add(statementInfo);
+
+
+    }
+
+    private void addTransactions(Document document, List<Transaction> transactionList) throws DocumentException {
         PdfPTable transactionsTable = new PdfPTable(4);
         PdfPCell date = new PdfPCell(new Phrase("Date"));
         date.setBackgroundColor(BaseColor.LIGHT_GRAY);
@@ -120,30 +156,19 @@ public class BankStatement {
             transactionsTable.addCell(new Phrase(transaction.getStatus().toString()));
         });
 
-        statementInfo.addCell(customerInfo);
-        statementInfo.addCell(statement);
-        statementInfo.addCell(lastDate);
-        statementInfo.addCell(customerNameInfo);
-        statementInfo.addCell(space);
-        statementInfo.addCell(address);
-
-        document.add(bankInfoTable);
-        document.add(statementInfo);
         document.add(transactionsTable);
-        document.close();
 
+    }
+
+    private void sendStatementEmail(User user, String FILE) throws MessagingException {
         EmailDetails emailDetails = EmailDetails.builder()
                 .recipient(user.getEmail())
                 .subject("STATEMENT OF ACCOUNT")
                 .messageBody("You can see your requested account statement attachment")
                 .attachment(FILE)
                 .build();
-
         emailService.sendEmailWithAttachment(emailDetails);
-
-        return transactionList;
     }
-
 
 
     @Transactional

@@ -7,6 +7,7 @@ import jakarta.mail.MessagingException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.FileNotFoundException;
 import java.util.List;
 
 @RestController
@@ -22,7 +23,7 @@ public class TransactionController {
     @GetMapping
     public List<Transaction> generateBankStatement(@RequestParam String accountNumber,
                                                    @RequestParam String startDate,
-                                                   @RequestParam String endDate) throws DocumentException, MessagingException {
+                                                   @RequestParam String endDate) throws DocumentException, MessagingException, FileNotFoundException {
 
         return bankStatement.generateStatement(accountNumber, startDate, endDate);
 
