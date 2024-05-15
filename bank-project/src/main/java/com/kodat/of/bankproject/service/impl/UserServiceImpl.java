@@ -1,12 +1,18 @@
 package com.kodat.of.bankproject.service.impl;
 
 import com.kodat.of.bankproject.dto.*;
+import com.kodat.of.bankproject.entity.Role;
 import com.kodat.of.bankproject.entity.User;
 import com.kodat.of.bankproject.repository.UserRepository;
 import com.kodat.of.bankproject.service.EmailService;
 import com.kodat.of.bankproject.service.TransactionService;
 import com.kodat.of.bankproject.service.UserService;
+import com.kodat.of.bankproject.service.token.JwtTokenProvider;
 import com.kodat.of.bankproject.utils.AccountUtils;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -17,11 +23,17 @@ public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final EmailService emailService;
     private final TransactionService transactionService;
+    private final PasswordEncoder passwordEncoder;
+    private final AuthenticationManager authenticationManager;
+    private final JwtTokenProvider jwtTokenProvider;
 
-    public UserServiceImpl(UserRepository userRepository, EmailService emailService, TransactionService transactionService) {
+    public UserServiceImpl(UserRepository userRepository, EmailService emailService, TransactionService transactionService, PasswordEncoder passwordEncoder, AuthenticationManager authenticationManager, JwtTokenProvider jwtTokenProvider) {
         this.userRepository = userRepository;
         this.emailService = emailService;
         this.transactionService = transactionService;
+        this.passwordEncoder = passwordEncoder;
+        this.authenticationManager = authenticationManager;
+        this.jwtTokenProvider = jwtTokenProvider;
     }
 
     @Override
@@ -45,10 +57,12 @@ public class UserServiceImpl implements UserService {
                 .stateOfOrigin(userRequest.getStateOfOrigin())
                 .accountNumber(AccountUtils.generateAccountNumber())
                 .email(userRequest.getEmail())
+                .password(passwordEncoder.encode(userRequest.getPassword()))
                 .accountBalance(userRequest.getAccountBalance())
                 .phone(userRequest.getPhone())
                 .alternativePhoneNumber(userRequest.getAlternativePhoneNumber())
                 .status("ACTIVE")
+                .role(Role.USER)
                 .build();
 
         User savedUser = userRepository.save(user);
@@ -77,6 +91,25 @@ public class UserServiceImpl implements UserService {
 
 
     }
+
+    public BankResponse login(LoginDTO loginDTO){
+        Authentication authentication = authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(loginDTO.getEmail(),loginDTO.getPassword()));
+
+       EmailDetails emailDetails = EmailDetails.builder()
+               .subject("You are logged in")
+               .recipient(loginDTO.getEmail())
+               .messageBody("You logged into your account.If you did not initiate this request , please contact your Bank ")
+               .build();
+
+       emailService.sendEmailAlert(emailDetails);
+
+       return BankResponse.builder()
+               .responseCode("Login success")
+               .responseMessage(jwtTokenProvider.generateToken(authentication))
+               .build();
+    }
+
+
 
     @Override
     public BankResponse balanceEnquiry(EnquiryRequest enquiryRequest) {

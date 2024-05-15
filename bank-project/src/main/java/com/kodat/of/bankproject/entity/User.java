@@ -4,9 +4,14 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.List;
 
 @Getter
 @Setter
@@ -22,6 +27,7 @@ public class User {
     private String firstName;
     private String lastName;
     private String email;
+    private String password;
     private String otherName;
     private String gender;
     private String address;
@@ -29,11 +35,13 @@ public class User {
     private String accountNumber;
     private BigDecimal accountBalance;
     private String alternativePhoneNumber;
-  @CreationTimestamp
-   private LocalDateTime createdAt;
-   @UpdateTimestamp
+    private Role role;
+    @CreationTimestamp
+    private LocalDateTime createdAt;
+    @UpdateTimestamp
     private LocalDateTime modifiedAt;
     private String status;
     private String stateOfOrigin;
+
 
 }

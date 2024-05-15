@@ -71,5 +71,11 @@ public class UserController {
         return new ResponseEntity<>("User deleted", HttpStatus.OK);
 
     }
+    @PostMapping("/login")
+    public ResponseEntity<BankResponse> login(@RequestBody LoginDTO loginDTO){
+        return ResponseEntity.ok(userService.login(loginDTO));
+    }
+
+
 
 }
