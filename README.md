@@ -48,7 +48,7 @@ This is a Spring Boot-based banking application that provides various functional
 3. Update the email configuration in application.properties:
    ```bash
    spring.mail.username=your_email@gmail.com
-   spring.mail.password=your_email_password
+   spring.mail.password=your_email_password_app_key
    
 4. Build the project using Maven:
    ```bash
